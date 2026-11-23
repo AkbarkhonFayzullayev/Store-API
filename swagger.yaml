@@ -1,0 +1,510 @@
+openapi: 3.0.0
+
+info:
+  title: Store API
+  version: 1.0.0
+  description: Store API documentation
+
+servers:
+  - url: http://localhost:5001/api/v1
+    description: Server is running locally
+
+tags:
+  - name: Products
+    description: Product management
+  - name: ProductViaId
+    description: Operations with a single product
+  - name: Auth
+    description: User registration and login
+  - name: User
+    description: User methods
+
+paths:
+  # =========================
+  # PRODUCTS
+  # =========================
+
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Get All Products
+      security: # ← shu qatorlarni qo‘shing
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Got all products
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Product"
+                  count:
+                    type: integer
+                    example: 0
+              example:
+                products: []
+                count: 0
+
+    post:
+      tags:
+        - Products
+      summary: Create Product
+      description: Only sellers and admins can create products.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+            example:
+              name: Airpods
+              price: 199
+              featured: true
+              rating: 4.5
+              company: ikea
+      responses:
+        "201":
+          description: New product created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Product"
+        "401":
+          description: Authentication required
+        "403":
+          description: Only sellers and admins can create products
+        "400":
+          description: Invalid product data
+
+  /products/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Product ID
+        schema:
+          type: string
+        example: 673a123456789abcdef12345
+
+    get:
+      tags:
+        - ProductViaId
+      summary: Get Product By ID
+      security: # ← shu qatorlarni qo‘shing
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Product found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Product"
+        "404":
+          description: Product not found
+
+    put:
+      tags:
+        - ProductViaId
+      summary: Update Product
+      description: Only sellers and admins can update products.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BaseProduct"
+            example:
+              name: AirTag
+              price: 2999
+              featured: true
+              rating: 4.7
+              company: ikea
+      responses:
+        "200":
+          description: Product updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  product:
+                    $ref: "#/components/schemas/Product"
+        "401":
+          description: Authentication required
+        "403":
+          description: Insufficient permissions
+        "404":
+          description: Product not found
+
+    delete:
+      tags:
+        - ProductViaId
+      summary: Delete Product
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Product deleted successfully
+
+  # =========================
+  # AUTHENTICATION
+  # =========================
+
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register new user
+      description: Create a new user account and generate access and refresh tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: akbar
+                email:
+                  type: string
+                  example: akbar@gmail.com
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+      responses:
+        201:
+          description: User registered successfully
+        400:
+          description: Invalid input
+        409:
+          description: Username or email already exists
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login user
+      description: Authenticate user and generate access and refresh tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: akbar
+                password:
+                  type: string
+                  format: password
+                  example: secret123
+      responses:
+        200:
+          description: Login successful. Refresh token is set as an HttpOnly cookie.
+          headers:
+            Set-Cookie:
+              description: Refresh token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    type: object
+                    properties:
+                      username:
+                        type: string
+                        example: akbar
+                      email:
+                        type: string
+                        example: akbar@gmail.com
+                      role:
+                        type: string
+                        example: customer
+                  accessToken:
+                    type: string
+                    example: eyJhbGciOiJIUzI1Ni...
+        400:
+          description: Username or password missing
+        401:
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      description: Generate a new access token using the refresh token stored in an HttpOnly cookie.
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: New access token generated successfully. Refresh cookie is also rotated.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    example: eyJhbGciOiJIUzI1Ni...
+        401:
+          description: Refresh token missing, invalid or expired
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout user
+      description: Revoke refresh token and clear authentication cookie.
+      security:
+        - cookieAuth: []
+      responses:
+        200:
+          description: Logged out successfully
+        401:
+          description: Invalid refresh token
+
+  # =========================
+  # Users
+  # =========================
+
+  /user/user-list:
+    get:
+      tags:
+        - User
+      summary: Get Users data
+      description: Get all users informations
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All users data fetched successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                $ref: "#/components/schemas/User"
+
+  /user/change-password:
+    post:
+      tags:
+        - User
+      summary: Change User password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+                - newPassword2
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                  example: old_password123
+                newPassword:
+                  type: string
+                  format: password
+                  example: new_password123
+                newPassword2:
+                  type: string
+                  format: password
+                  example: new_password123
+      responses:
+        "200":
+          description: Password is changed successfully
+        "400":
+          description: Bad request - Passwords do not match
+        "401":
+          description: Unauthorized
+        "404":
+          description: User not found
+
+  /user/change-username:
+    post:
+      tags:
+        - User
+      summary: Username change
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+              properties:
+                username:
+                  type: string
+                  example: serdar123
+      responses:
+        "200":
+          description: Username is changed successfully
+        "400":
+          description: Username is invalid
+        "409":
+          description: Username already exists
+
+# =========================
+# COMPONENTS
+# =========================
+
+components:
+  # JWT AUTHENTICATION
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: refreshToken
+
+  schemas:
+    # =========================
+    # AUTH SCHEMAS
+    # =========================
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+          description: JWT authentication token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 673a123456789abcdef12345
+        username:
+          type: string
+          example: serdar
+        email:
+          type: string
+          format: email
+          example: serdar@gmail.com
+        role:
+          type: string
+          enum:
+            - customer
+            - seller
+            - admin
+          default: customer
+          example: customer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # =========================
+    # PRODUCT SCHEMAS
+    # =========================
+
+    CreateProductRequest:
+      type: object
+      required:
+        - name
+        - price
+      properties:
+        name:
+          type: string
+          example: pillow
+        price:
+          type: number
+          example: 199
+        featured:
+          type: boolean
+          example: false
+        rating:
+          type: number
+          example: 4.5
+        company:
+          type: string
+          example: ikea
+
+    BaseProduct:
+      type: object
+      properties:
+        name:
+          type: string
+          example: pillow
+        price:
+          type: number
+          example: 199
+        featured:
+          type: boolean
+          example: false
+        rating:
+          type: number
+          example: 4.5
+        company:
+          type: string
+          example: ikea
+
+    Product:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: 673a123456789abcdef12345
+        name:
+          type: string
+          example: pillow
+        price:
+          type: number
+          example: 199
+        featured:
+          type: boolean
+          example: false
+        rating:
+          type: number
+          example: 4.5
+        company:
+          type: string
+          example: ikea
+        createdAt:
+          type: string
+          format: date-time
